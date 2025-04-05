@@ -1,6 +1,11 @@
 [package]
 name = "spotify-manager"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 
 [dependencies]
+anyhow = { version = "1.0.97", features = ["backtrace"] }
+clap = { version = "4.5.35", features = ["derive"] }
+spotify-rs = "0.3.14"
+tokio = { version = "1.44.1", features = ["rt-multi-thread"] }
+webbrowser = "1.0.4"
