@@ -1,8 +1,8 @@
 mod spotify;
 
 use anyhow::Result;
-
 use clap::{ Parser, Subcommand };
+use tokio::runtime::Runtime;
 
 #[derive(Debug, Parser)]
 struct Cli {
@@ -19,7 +19,21 @@ enum Command {
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+enum Error {
+    #[error("No refresh token found")]
+    NoRefreshToken,
+    #[error("Error parsing spotify authentication response")]
+    ParseAuthResponse,
+}
+
 fn main() -> Result<()> {
-    spotify::authenticate()?;
-    Ok(())
+    let rt = Runtime::new()?;
+    rt.block_on(async {
+        let cli = Cli::parse();
+        match cli.command {
+            Command::Auth{ server_login } => spotify::authenticate(server_login).await?,
+        };
+        Ok(())
+    })
 }
