@@ -1,3 +1,4 @@
+mod playlist;
 mod spotify;
 
 use anyhow::Result;
