@@ -47,6 +47,7 @@ pub async fn authenticate(server_mode: bool) -> Result<()> {
     fs::create_dir_all(cache_path)?;
     let mut cache_file = File::create(CACHE_FILE)?;
     cache_file.write_all(refresh_token.as_bytes())?;
+    println!("Authentication successful");
     Ok(())
 }
 
@@ -61,6 +62,7 @@ fn scopes() -> Vec<&'static str> {
 
 fn prompt_browser(url: &str) -> Result<(String, String)> {
     Command::new("zen-browser").arg(url).spawn()?;
+    println!("URL opened in browser");
     let (mut stream, _) = TcpListener::bind(LOOPBACK_ADDRESS)?.accept()?;
     let mut response = String::new();
     BufReader::new(&stream).read_line(&mut response)?;

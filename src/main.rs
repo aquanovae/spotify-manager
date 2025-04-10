@@ -1,6 +1,7 @@
 mod playlist;
 mod spotify;
 
+use crate::playlist::{ Playlist, TrackLists };
 use anyhow::Result;
 use clap::{ Parser, Subcommand };
 
@@ -46,7 +47,9 @@ async fn main() -> Result<()> {
 }
 
 async fn run_with_api(command: Command) -> Result<()> {
-    let spotify = spotify::get_api().await?;
+    let mut spotify = spotify::get_api().await?;
+    let mut track_lists = TrackLists::new();
+    track_lists.fetch_all(&mut spotify).await?;
     match command {
         Command::Generate => {
         },

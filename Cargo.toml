@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = { version = "1.0.97", features = ["backtrace"] }
 clap = { version = "4.5.35", features = ["derive"] }
+enum-iterator = "2.1.0"
 spotify-rs = "0.3.14"
 thiserror = "2.0.12"
 tokio = { version = "1.44.2", features = ["macros", "rt-multi-thread"] }
