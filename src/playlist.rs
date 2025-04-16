@@ -1,14 +1,21 @@
-use crate::spotify::Spotify;
-
+use crate::{
+    cache,
+    spotify:: Spotify
+};
 use anyhow::Result;
+use clap::ValueEnum;
 use enum_iterator::Sequence;
+use serde::{ Deserialize, Serialize };
 use spotify_rs::model::PlayableItem;
 use std::{
     collections::HashMap,
-    sync::{ Arc, Mutex },
+    fmt::{ self, Display, Formatter },
+    ops::{ Deref, DerefMut },
 };
 
-#[derive(Debug, PartialEq, Sequence)]
+type TrackLists = HashMap<Playlist, Vec<String>>;
+
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Sequence, Serialize, ValueEnum)]
 pub enum Playlist {
     CurrentLoop,
     FreshVibrations,
@@ -34,31 +41,61 @@ impl Playlist {
     }
 }
 
-pub struct TrackLists {
-    track_lists: HashMap<String, String>,
-}
-
-impl TrackLists {
-    pub fn new() -> TrackLists {
-        TrackLists {
-            track_lists: HashMap::new(),
+impl Display for Playlist {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Playlist::CurrentLoop => write!(f, "current-loop"),
+            Playlist::FreshVibrations => write!(f, "fresh-vibrations"),
+            Playlist::IntoTheAbyss => write!(f, "into-the-abyss"),
+            Playlist::FlowingAtmosphere => write!(f, "flowing-atmosphere"),
+            Playlist::NerveRacking => write!(f, "nerve-racking"),
+            Playlist::DeepSpaceWubs => write!(f, "deep-space-wubs"),
+            Playlist::DailyPlaylist => write!(f, ""),
         }
     }
+}
 
-    pub async fn fetch_all(&mut self, spotify: &mut Spotify) -> Result<()> {
+#[derive(Deserialize, Serialize)]
+pub struct PlaylistData {
+    track_lists: TrackLists,
+}
+
+impl PlaylistData {
+    pub async fn fetch(spotify: &mut Spotify) -> Result<PlaylistData> {
+        let mut track_lists = PlaylistData {
+            track_lists: TrackLists::new(),
+        };
         for playlist in enum_iterator::all::<Playlist>() {
-            self.fetch(spotify, playlist).await?;
+            track_lists.fetch_track_list(spotify, playlist).await?;
         }
+        Ok(track_lists)
+    }
+
+    pub fn from_cache() -> Result<PlaylistData> {
+        let track_lists = cache::read_track_lists()?;
+        Ok(track_lists)
+    }
+
+    pub fn write_to_cache(&self) -> Result<()> {
+        cache::write_track_lists(self)?;
         Ok(())
     }
 
-    pub async fn fetch(
+    async fn fetch_track_list(
         &mut self, spotify: &mut Spotify, playlist: Playlist
     ) -> Result<()> {
-        let track_list = spotify
+        let mut track_list = Vec::new();
+        let get_track_uris = |item| {
+            match &item.track {
+                PlayableItem::Track(track) => Some(track.uri.clone()),
+                _ => None,
+            }
+        };
+        let response = spotify
             .playlist_items(playlist.id())
             .get()
-            .await?
+            .await?;
+            /*
             .items
             .iter()
             .filter_map(|item| {
@@ -68,18 +105,22 @@ impl TrackLists {
                 }
             })
             .collect();
-        self.track_lists.insert(playlist.id(), track_list);
+        */
+        println!("{:?}", track_list);
+        //self.track_lists.insert(playlist, track_list);
         Ok(())
     }
 }
 
-/*
-async fn fetch_track_list(
-    spotify: Arc<Mutex<&mut Spotify>>, playlist: Playlist
-) -> Result<(Playlist, Vec<String>)> {
-    let mut spotify = spotify.lock()?;
-    let request = spotify.playlist_items(playlist.id());
-    drop(spotify);
-    todo!()
+impl Deref for PlaylistData {
+    type Target = TrackLists;
+    fn deref(&self) -> &Self::Target {
+        &self.track_lists
+    }
 }
-*/
+
+impl DerefMut for PlaylistData {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.track_lists
+    }
+}

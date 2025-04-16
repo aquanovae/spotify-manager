@@ -1,5 +1,7 @@
-use crate::Error;
-
+use crate::{
+    cache,
+    Error
+};
 use anyhow::Result;
 use spotify_rs::{
     auth::{ AuthCodePkceFlow, NoVerifier, Token },
@@ -8,10 +10,8 @@ use spotify_rs::{
 };
 use std::{
     collections::HashMap,
-    fs::{ self, File },
-    io::{ self, BufRead, BufReader, Read, Write },
+    io::{ self, BufRead, BufReader, Write },
     net::TcpListener,
-    path::Path,
     process::Command,
 };
 use url::Url;
@@ -20,34 +20,36 @@ pub type Spotify = Client<Token, AuthCodePkceFlow, NoVerifier>;
 
 const CLIENT_ID: &str = "b91f8140e4014e0eaf126d0bb043f59c";
 const LOOPBACK_ADDRESS: &str = "127.0.0.1:8080";
-//const CACHE_FILE: &str = "/var/cache/spotify-token/token.txt";
-const CACHE_FILE: &str = "/tmp/spotify-token/token.txt";
+const REDIRECT_URL: &str = "http://127.0.0.1:8080";
 
 pub async fn get_api() -> Result<Spotify> {
-    let mut cache_file = File::open(CACHE_FILE)?;
-    let mut token = String::new();
-    cache_file.read_to_string(&mut token)?;
+    let token = cache::read_token()?;
     let auth = AuthCodePkceFlow::new(CLIENT_ID, scopes());
-    let spotify = Client::from_refresh_token(auth, true, token).await?;
+    let mut spotify = Client::from_refresh_token(auth, false, token).await?;
+    save_token(&mut spotify).await?;
     Ok(spotify)
 }
 
-pub async fn authenticate(server_mode: bool) -> Result<()> {
-    let url = RedirectUrl::new(String::from("http://") + LOOPBACK_ADDRESS)?;
+pub async fn authenticate(cli_login: bool) -> Result<()> {
+    let url = RedirectUrl::new(REDIRECT_URL.to_string())?;
     let auth = AuthCodePkceFlow::new(CLIENT_ID, scopes());
-    let (client, url) = AuthCodePkceClient::new(auth, url, true);
-    let (code, state) = if server_mode {
+    let (client, url) = AuthCodePkceClient::new(auth, url, false);
+    let (code, state) = if cli_login {
         prompt_cli(url.as_str())?
     } else {
         prompt_browser(url.as_str())?
     };
-    let spotify = client.authenticate(code, state).await?;
-    let refresh_token = spotify.refresh_token().ok_or(Error::NoRefreshToken)?;
-    let cache_path = Path::new(CACHE_FILE).parent().unwrap();
-    fs::create_dir_all(cache_path)?;
-    let mut cache_file = File::create(CACHE_FILE)?;
-    cache_file.write_all(refresh_token.as_bytes())?;
+    let mut spotify = client.authenticate(code, state).await?;
+    save_token(&mut spotify).await?;
     println!("Authentication successful");
+    Ok(())
+}
+
+async fn save_token(spotify: &mut Spotify) -> Result<()> {
+    spotify.request_refresh_token().await?;
+    let token = spotify.refresh_token()
+        .ok_or(Error::NoRefreshToken)?;
+    cache::write_token(token)?;
     Ok(())
 }
 
@@ -68,8 +70,9 @@ fn prompt_browser(url: &str) -> Result<(String, String)> {
     BufReader::new(&stream).read_line(&mut response)?;
     stream.write_all("HTTP/1.1 200 OK\r\n\r\nDone".as_bytes())?;
     let queries = response.split(" ").skip(1).take(1).collect::<String>();
-    let url = String::from("http://") + LOOPBACK_ADDRESS + &queries;
-    parse_queries(&url)
+    let url = REDIRECT_URL.to_string() + &queries;
+    let code_state = parse_queries(&url)?;
+    Ok(code_state)
 }
 
 fn prompt_cli(url: &str) -> Result<(String, String)> {
@@ -79,7 +82,8 @@ fn prompt_cli(url: &str) -> Result<(String, String)> {
     println!("Paste redirected url:");
     let mut url = String::new();
     io::stdin().read_line(&mut url)?;
-    parse_queries(&url)
+    let code_state = parse_queries(&url)?;
+    Ok(code_state)
 }
 
 fn parse_queries(url: &str) -> Result<(String, String)> {

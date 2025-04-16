@@ -1,7 +1,9 @@
+mod cache;
+mod generate;
 mod playlist;
 mod spotify;
 
-use crate::playlist::{ Playlist, TrackLists };
+use crate::playlist::{ Playlist, PlaylistData };
 use anyhow::Result;
 use clap::{ Parser, Subcommand };
 
@@ -15,13 +17,19 @@ struct Cli {
 enum Command {
     /// Authenticate user
     Auth {
+        /// Login in cli mode
         #[arg(short, default_value_t = false)]
-        server_login: bool,
+        cli_login: bool,
     },
     /// Generate daily playlist
     Generate,
+    /// List playlists
+    ListPlaylists,
     /// Switch current playing track to selected playlist
-    SwitchTrack,
+    SwitchTrack {
+        /// Destination playlist
+        destination: Playlist,
+    },
     /// Get current playing track info
     TrackInfo,
 }
@@ -32,28 +40,35 @@ enum Error {
     NoRefreshToken,
     #[error("Error parsing spotify authentication response")]
     ParseAuthResponse,
+    #[error("Playlist not fetched")]
+    PlaylistNotFetched,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    match cli.command {
-        Command::Auth{ server_login } => {
-            spotify::authenticate(server_login).await?;
-        },
-        _ => run_with_api(cli.command).await?,
+    if let Command::Auth{ cli_login } = cli.command {
+        spotify::authenticate(cli_login).await?;
+        return Ok(());
     };
-    Ok(())
-}
-
-async fn run_with_api(command: Command) -> Result<()> {
     let mut spotify = spotify::get_api().await?;
-    let mut track_lists = TrackLists::new();
-    track_lists.fetch_all(&mut spotify).await?;
-    match command {
-        Command::Generate => {
+    let mut track_lists = match cli.command {
+        Command::SwitchTrack{ .. } => {
+            PlaylistData::from_cache()?
         },
-        Command::SwitchTrack => {
+        _ => {
+            PlaylistData::fetch(&mut spotify).await?
+        },
+    };
+    match cli.command {
+        Command::Generate => {
+            //generate::daily_playlist(&mut spotify, &mut track_lists).await?;
+            track_lists.iter().for_each(|(key, val)| println!("{} {}", key, val.len()));
+        },
+        Command::ListPlaylists => {
+            println!("{}", Playlist::CurrentLoop);
+        },
+        Command::SwitchTrack{ destination } => {
         },
         Command::TrackInfo => {
         },
