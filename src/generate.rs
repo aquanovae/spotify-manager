@@ -1,6 +1,6 @@
 use crate::{
     playlist::{ Playlist, PlaylistData },
-    spotify::Spotify,
+    spotify::{ CHUNK_SIZE, Spotify },
     Error,
 };
 use anyhow::Result;
@@ -11,7 +11,6 @@ use rand::{
 
 const DISCOVERY_LENGTH: usize = 30;
 const PLAYLIST_LENGTH: usize = 175;
-const CHUNK_SIZE: usize = 100;
 
 trait TripleShuffle {
     fn triple_shuffle<R>(self, rng: &mut R) -> Self
@@ -57,20 +56,17 @@ pub async fn daily_playlist(
         .into_iter()
         .take(PLAYLIST_LENGTH - selection.len())
         .for_each(|track| selection.push(track.clone()));
-    println!("{}", daily_playlist.len());
     for chunk in daily_playlist.chunks(CHUNK_SIZE) {
         spotify
             .remove_playlist_items(Playlist::DailyPlaylist.id(), chunk)
             .send()
             .await?;
     }
-    /*
     for chunk in selection.triple_shuffle(rng).chunks(CHUNK_SIZE) {
         spotify
             .add_items_to_playlist(Playlist::DailyPlaylist.id(), chunk)
             .send()
             .await?;
     }
-    */
     Ok(())
 }

@@ -1,6 +1,6 @@
 use crate::{
     cache,
-    spotify:: Spotify
+    spotify::{ CHUNK_SIZE, Spotify },
 };
 use anyhow::Result;
 use clap::ValueEnum;
@@ -85,29 +85,28 @@ impl PlaylistData {
         &mut self, spotify: &mut Spotify, playlist: Playlist
     ) -> Result<()> {
         let mut track_list = Vec::new();
-        let get_track_uris = |item| {
-            match &item.track {
-                PlayableItem::Track(track) => Some(track.uri.clone()),
-                _ => None,
+        let mut offset = 0;
+        loop {
+            let request = spotify
+                .playlist_items(playlist.id())
+                .offset(offset)
+                .get()
+                .await?;
+            request.items
+                .iter()
+                .filter_map(|item| {
+                    match &item.track {
+                        PlayableItem::Track(track) => Some(track.uri.clone()),
+                        _ => None,
+                    }
+                })
+                .for_each(|track| track_list.push(track));
+            if request.next.is_none() {
+                break;
             }
-        };
-        let response = spotify
-            .playlist_items(playlist.id())
-            .get()
-            .await?;
-            /*
-            .items
-            .iter()
-            .filter_map(|item| {
-                match &item.track {
-                    PlayableItem::Track(track) => Some(track.uri.clone()),
-                    _ => None,
-                }
-            })
-            .collect();
-        */
-        println!("{:?}", track_list);
-        //self.track_lists.insert(playlist, track_list);
+            offset += CHUNK_SIZE as u32;
+        }
+        self.insert(playlist, track_list);
         Ok(())
     }
 }

@@ -62,8 +62,7 @@ async fn main() -> Result<()> {
     };
     match cli.command {
         Command::Generate => {
-            //generate::daily_playlist(&mut spotify, &mut track_lists).await?;
-            track_lists.iter().for_each(|(key, val)| println!("{} {}", key, val.len()));
+            generate::daily_playlist(&mut spotify, &mut track_lists).await?;
         },
         Command::ListPlaylists => {
             println!("{}", Playlist::CurrentLoop);

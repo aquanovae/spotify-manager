@@ -18,6 +18,8 @@ use url::Url;
 
 pub type Spotify = Client<Token, AuthCodePkceFlow, NoVerifier>;
 
+pub const CHUNK_SIZE: usize = 100;
+
 const CLIENT_ID: &str = "b91f8140e4014e0eaf126d0bb043f59c";
 const LOOPBACK_ADDRESS: &str = "127.0.0.1:8080";
 const REDIRECT_URL: &str = "http://127.0.0.1:8080";
