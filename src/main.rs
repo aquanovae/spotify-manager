@@ -2,9 +2,10 @@ mod cache;
 mod generate;
 mod playlist;
 mod spotify;
+mod switch_track;
 mod track_info;
 
-use crate::playlist::{ Playlist, PlaylistData };
+use crate::playlist::{ Playlist, PlaylistData, PlaylistFetchMode };
 use anyhow::Result;
 use clap::{ Parser, Subcommand };
 
@@ -48,28 +49,45 @@ enum Error {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    if let Command::Auth{ cli_login } = cli.command {
-        spotify::authenticate(cli_login).await?;
-        return Ok(());
+    match cli.command {
+        Command::Auth{ cli_login } => {
+            spotify::authenticate(cli_login).await?;
+            return Ok(());
+        },
+        Command::ListPlaylists => {
+            for playlist in enum_iterator::all::<Playlist>() {
+                println!("{}", playlist);
+            }
+            return Ok(());
+        },
+        _ => (),
     };
-    if let Command::ListPlaylists = cli.command {
-        for playlist in enum_iterator::all::<Playlist>() {
-            println!("{}", playlist);
-        }
-        return Ok(());
+    let spotify = &mut spotify::get_api().await?;
+    let playlist_data = match cli.command {
+        Command::Generate => {
+            PlaylistData::fetch(spotify, PlaylistFetchMode::All).await?
+        },
+        _ => {
+            match PlaylistData::from_cache() {
+                Ok(playlist_data) => playlist_data,
+                Err(_) => {
+                    let playlist_data = PlaylistData::fetch(spotify, PlaylistFetchMode::Limited).await?;
+                    playlist_data.write_to_cache()?;
+                    playlist_data
+                },
+            }
+        },
     };
-    let mut spotify = spotify::get_api().await?;
-    if let Command::SwitchTrack{ destination } = cli.command {
-        return Ok(());
-    };
-    let playlist_data = PlaylistData::fetch(&mut spotify).await?;
-    if let Command::Generate = cli.command {
-        generate::daily_playlist(&mut spotify, playlist_data).await?;
-        return Ok(());
-    };
-    if let Command::TrackInfo = cli.command {
-        track_info::run_daemon(&mut spotify, playlist_data).await?;
-        return Ok(());
+    match cli.command {
+        Command::Generate => {
+            generate::daily_playlist(spotify, playlist_data).await?;
+        },
+        Command::SwitchTrack{ destination } => {
+        },
+        Command::TrackInfo => {
+            track_info::run_daemon(spotify, playlist_data).await?;
+        },
+        _ => (),
     };
     Ok(())
 }

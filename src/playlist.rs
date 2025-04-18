@@ -55,19 +55,32 @@ impl Display for Playlist {
     }
 }
 
+pub enum PlaylistFetchMode {
+    All,
+    Limited,
+}
+
 #[derive(Deserialize, Serialize)]
 pub struct PlaylistData {
     track_lists: TrackLists,
 }
 
 impl PlaylistData {
-    pub async fn fetch(spotify: &mut Spotify) -> Result<PlaylistData> {
+    pub async fn fetch(spotify: &mut Spotify, mode: PlaylistFetchMode) -> Result<PlaylistData> {
         let mut track_lists = PlaylistData {
             track_lists: TrackLists::new(),
         };
-        for playlist in enum_iterator::all::<Playlist>() {
-            track_lists.fetch_track_list(spotify, playlist).await?;
-        }
+        match mode {
+            PlaylistFetchMode::All => {
+                for playlist in enum_iterator::all::<Playlist>() {
+                    track_lists.fetch_track_list(spotify, playlist).await?;
+                }
+            },
+            PlaylistFetchMode::Limited => {
+                track_lists.fetch_track_list(spotify, Playlist::CurrentLoop).await?;
+                track_lists.fetch_track_list(spotify, Playlist::FreshVibrations).await?;
+            },
+        };
         Ok(track_lists)
     }
 
