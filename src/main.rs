@@ -2,6 +2,7 @@ mod cache;
 mod generate;
 mod playlist;
 mod spotify;
+mod track_info;
 
 use crate::playlist::{ Playlist, PlaylistData };
 use anyhow::Result;
@@ -51,27 +52,24 @@ async fn main() -> Result<()> {
         spotify::authenticate(cli_login).await?;
         return Ok(());
     };
-    let mut spotify = spotify::get_api().await?;
-    let mut track_lists = match cli.command {
-        Command::SwitchTrack{ .. } => {
-            PlaylistData::from_cache()?
-        },
-        _ => {
-            PlaylistData::fetch(&mut spotify).await?
-        },
+    if let Command::ListPlaylists = cli.command {
+        for playlist in enum_iterator::all::<Playlist>() {
+            println!("{}", playlist);
+        }
+        return Ok(());
     };
-    match cli.command {
-        Command::Generate => {
-            generate::daily_playlist(&mut spotify, &mut track_lists).await?;
-        },
-        Command::ListPlaylists => {
-            println!("{}", Playlist::CurrentLoop);
-        },
-        Command::SwitchTrack{ destination } => {
-        },
-        Command::TrackInfo => {
-        },
-        _ => (),
+    let mut spotify = spotify::get_api().await?;
+    if let Command::SwitchTrack{ destination } = cli.command {
+        return Ok(());
+    };
+    let playlist_data = PlaylistData::fetch(&mut spotify).await?;
+    if let Command::Generate = cli.command {
+        generate::daily_playlist(&mut spotify, playlist_data).await?;
+        return Ok(());
+    };
+    if let Command::TrackInfo = cli.command {
+        track_info::run_daemon(&mut spotify, playlist_data).await?;
+        return Ok(());
     };
     Ok(())
 }

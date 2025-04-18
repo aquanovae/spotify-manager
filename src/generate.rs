@@ -31,8 +31,9 @@ impl<T> TripleShuffle for Vec<T> {
 }
 
 pub async fn daily_playlist(
-    spotify: &mut Spotify, track_lists: &mut PlaylistData
+    spotify: &mut Spotify, playlist_data: PlaylistData
 ) -> Result<()> {
+    let mut track_lists = playlist_data.track_lists();
     let rng = &mut rand::rng();
     let daily_playlist = track_lists
         .remove(&Playlist::DailyPlaylist)
@@ -48,14 +49,14 @@ pub async fn daily_playlist(
         .take(DISCOVERY_LENGTH)
         .for_each(|track| selection.push(track));
     track_lists
-        .iter()
+        .into_iter()
         .map(|(_, track_list)| track_list)
         .flatten()
         .collect::<Vec<_>>()
         .triple_shuffle(rng)
         .into_iter()
         .take(PLAYLIST_LENGTH - selection.len())
-        .for_each(|track| selection.push(track.clone()));
+        .for_each(|track| selection.push(track));
     for chunk in daily_playlist.chunks(CHUNK_SIZE) {
         spotify
             .remove_playlist_items(Playlist::DailyPlaylist.id(), chunk)

@@ -71,16 +71,6 @@ impl PlaylistData {
         Ok(track_lists)
     }
 
-    pub fn from_cache() -> Result<PlaylistData> {
-        let track_lists = cache::read_track_lists()?;
-        Ok(track_lists)
-    }
-
-    pub fn write_to_cache(&self) -> Result<()> {
-        cache::write_track_lists(self)?;
-        Ok(())
-    }
-
     async fn fetch_track_list(
         &mut self, spotify: &mut Spotify, playlist: Playlist
     ) -> Result<()> {
@@ -107,6 +97,20 @@ impl PlaylistData {
             offset += CHUNK_SIZE as u32;
         }
         self.insert(playlist, track_list);
+        Ok(())
+    }
+
+    pub fn track_lists(self) -> TrackLists {
+        self.track_lists
+    }
+
+    pub fn from_cache() -> Result<PlaylistData> {
+        let track_lists = cache::read_track_lists()?;
+        Ok(track_lists)
+    }
+
+    pub fn write_to_cache(&self) -> Result<()> {
+        cache::write_track_lists(self)?;
         Ok(())
     }
 }
