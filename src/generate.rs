@@ -1,5 +1,5 @@
 use crate::{
-    playlist::{ Playlist, PlaylistData },
+    playlist::{ Playlist, TrackLists },
     spotify::{ CHUNK_SIZE, Spotify },
     Error,
 };
@@ -31,9 +31,8 @@ impl<T> TripleShuffle for Vec<T> {
 }
 
 pub async fn daily_playlist(
-    spotify: &mut Spotify, playlist_data: PlaylistData
+    spotify: &mut Spotify, mut track_lists: TrackLists 
 ) -> Result<()> {
-    let mut track_lists = playlist_data.track_lists();
     let rng = &mut rand::rng();
     let daily_playlist = track_lists
         .remove(&Playlist::DailyPlaylist)

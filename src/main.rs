@@ -1,11 +1,12 @@
 mod cache;
 mod generate;
+mod ipc;
 mod playlist;
 mod spotify;
 mod switch_track;
 mod track_info;
 
-use crate::playlist::{ Playlist, PlaylistData, PlaylistFetchMode };
+use crate::playlist::{ FetchMode, Playlist, TrackLists };
 use anyhow::Result;
 use clap::{ Parser, Subcommand };
 
@@ -63,29 +64,23 @@ async fn main() -> Result<()> {
         _ => (),
     };
     let spotify = &mut spotify::get_api().await?;
-    let playlist_data = match cli.command {
+    let track_lists = match cli.command {
         Command::Generate => {
-            PlaylistData::fetch(spotify, PlaylistFetchMode::All).await?
+            playlist::get_track_lists(spotify, FetchMode::All).await?
         },
         _ => {
-            match PlaylistData::from_cache() {
-                Ok(playlist_data) => playlist_data,
-                Err(_) => {
-                    let playlist_data = PlaylistData::fetch(spotify, PlaylistFetchMode::Limited).await?;
-                    playlist_data.write_to_cache()?;
-                    playlist_data
-                },
-            }
+            playlist::get_track_lists(spotify, FetchMode::Limited).await?
         },
     };
     match cli.command {
         Command::Generate => {
-            generate::daily_playlist(spotify, playlist_data).await?;
+            generate::daily_playlist(spotify, track_lists).await?;
         },
         Command::SwitchTrack{ destination } => {
+            switch_track::to_destination()?;
         },
         Command::TrackInfo => {
-            track_info::run_daemon(spotify, playlist_data).await?;
+            track_info::run_daemon(spotify, track_lists).await?;
         },
         _ => (),
     };

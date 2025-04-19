@@ -13,7 +13,7 @@ use std::{
     ops::{ Deref, DerefMut },
 };
 
-type TrackLists = HashMap<Playlist, Vec<String>>;
+pub type TrackLists = HashMap<Playlist, Vec<String>>;
 
 #[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Sequence, Serialize, ValueEnum)]
 pub enum Playlist {
@@ -55,88 +55,75 @@ impl Display for Playlist {
     }
 }
 
-pub enum PlaylistFetchMode {
+pub enum FetchMode {
     All,
     Limited,
+    Cache,
 }
 
-#[derive(Deserialize, Serialize)]
-pub struct PlaylistData {
-    track_lists: TrackLists,
+pub async fn get_track_lists(spotify: &mut Spotify, mode: FetchMode) -> Result<TrackLists> {
+    let track_lists = match mode {
+        FetchMode::All => {
+            fetch_all(spotify).await?
+        },
+        FetchMode::Limited => {
+            from_cache_or_fetch(spotify).await?
+        },
+        FetchMode::Cache => {
+        },
+    };
+    Ok(track_lists)
 }
 
-impl PlaylistData {
-    pub async fn fetch(spotify: &mut Spotify, mode: PlaylistFetchMode) -> Result<PlaylistData> {
-        let mut track_lists = PlaylistData {
-            track_lists: TrackLists::new(),
-        };
-        match mode {
-            PlaylistFetchMode::All => {
-                for playlist in enum_iterator::all::<Playlist>() {
-                    track_lists.fetch_track_list(spotify, playlist).await?;
+async fn fetch_all(spotify: &mut Spotify) -> Result<TrackLists> {
+    let mut track_lists = TrackLists::new();
+    for playlist in enum_iterator::all::<Playlist>() {
+        fetch_track_list(spotify, &mut track_lists, playlist).await?;
+    }
+    Ok(track_lists)
+}
+
+async fn from_cache_or_fetch(spotify: &mut Spotify) -> Result<TrackLists> {
+    let track_lists = match cache::read_track_lists() {
+        Ok(track_lists) => track_lists,
+        Err(_) => fetch_limited(spotify).await?,
+    };
+    Ok(track_lists)
+}
+
+pub async fn fetch_limited(spotify: &mut Spotify) -> Result<TrackLists> {
+    let mut track_lists = TrackLists::new();
+    fetch_track_list(spotify, &mut track_lists, Playlist::CurrentLoop).await?;
+    fetch_track_list(spotify, &mut track_lists, Playlist::FreshVibrations).await?;
+    cache::write_track_lists(&track_lists)?;
+    Ok(track_lists)
+}
+
+async fn fetch_track_list(
+    spotify: &mut Spotify, track_lists: &mut TrackLists, playlist: Playlist
+) -> Result<()> {
+    let mut track_list = Vec::new();
+    let mut offset = 0;
+    loop {
+        let request = spotify
+            .playlist_items(playlist.id())
+            .offset(offset)
+            .get()
+            .await?;
+        request.items
+            .iter()
+            .filter_map(|item| {
+                match &item.track {
+                    PlayableItem::Track(track) => Some(track.uri.clone()),
+                    _ => None,
                 }
-            },
-            PlaylistFetchMode::Limited => {
-                track_lists.fetch_track_list(spotify, Playlist::CurrentLoop).await?;
-                track_lists.fetch_track_list(spotify, Playlist::FreshVibrations).await?;
-            },
-        };
-        Ok(track_lists)
-    }
-
-    async fn fetch_track_list(
-        &mut self, spotify: &mut Spotify, playlist: Playlist
-    ) -> Result<()> {
-        let mut track_list = Vec::new();
-        let mut offset = 0;
-        loop {
-            let request = spotify
-                .playlist_items(playlist.id())
-                .offset(offset)
-                .get()
-                .await?;
-            request.items
-                .iter()
-                .filter_map(|item| {
-                    match &item.track {
-                        PlayableItem::Track(track) => Some(track.uri.clone()),
-                        _ => None,
-                    }
-                })
-                .for_each(|track| track_list.push(track));
-            if request.next.is_none() {
-                break;
-            }
-            offset += CHUNK_SIZE as u32;
+            })
+            .for_each(|track| track_list.push(track));
+        if request.next.is_none() {
+            break;
         }
-        self.insert(playlist, track_list);
-        Ok(())
+        offset += CHUNK_SIZE as u32;
     }
-
-    pub fn track_lists(self) -> TrackLists {
-        self.track_lists
-    }
-
-    pub fn from_cache() -> Result<PlaylistData> {
-        let track_lists = cache::read_track_lists()?;
-        Ok(track_lists)
-    }
-
-    pub fn write_to_cache(&self) -> Result<()> {
-        cache::write_track_lists(self)?;
-        Ok(())
-    }
-}
-
-impl Deref for PlaylistData {
-    type Target = TrackLists;
-    fn deref(&self) -> &Self::Target {
-        &self.track_lists
-    }
-}
-
-impl DerefMut for PlaylistData {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.track_lists
-    }
+    track_lists.insert(playlist, track_list);
+    Ok(())
 }

@@ -1,4 +1,4 @@
-use crate::playlist::PlaylistData;
+use crate::playlist::TrackLists;
 use anyhow::Result;
 use serde::Serialize;
 use std::{
@@ -23,12 +23,12 @@ pub fn read_token() -> Result<String> {
     Ok(token)
 }
 
-pub fn write_track_lists(track_lists: &PlaylistData) -> Result<()> {
+pub fn write_track_lists(track_lists: &TrackLists) -> Result<()> {
     write_to_cache(TRACK_LISTS_CACHE, track_lists)?;
     Ok(())
 }
 
-pub fn read_track_lists() -> Result<PlaylistData> {
+pub fn read_track_lists() -> Result<TrackLists> {
     let track_lists = ron::de::from_reader(
         File::open(TRACK_LISTS_CACHE)?
     )?;
