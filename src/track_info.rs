@@ -57,7 +57,7 @@ async fn update_output(spotify: &mut Spotify, track_lists: &TrackLists) -> Resul
             .as_slice()
             .join(", ");
         let playlist_status = playlist_status(track_lists, &track.uri)?;
-        println!("{} - {} <{}>", artists, track.name, playlist_status);
+        println!("{} - {} [{}]", artists, track.name, playlist_status);
     };
     Ok(())
 }
