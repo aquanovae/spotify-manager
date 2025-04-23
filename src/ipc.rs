@@ -17,6 +17,7 @@ pub struct Socket {
 
 impl Socket {
     pub fn new() -> Result<Socket> {
+        let _ = fs::remove_file(SOCKET_PATH);
         let listener = UnixListener::bind(SOCKET_PATH)?;
         listener.set_nonblocking(true)?;
         Ok(Socket {
@@ -31,12 +32,6 @@ impl Socket {
         else {
             false
         }
-    }
-}
-
-impl Drop for Socket {
-    fn drop(&mut self) {
-        fs::remove_file(SOCKET_PATH).unwrap()
     }
 }
 
