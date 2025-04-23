@@ -10,7 +10,6 @@ use spotify_rs::model::PlayableItem;
 use std::{
     collections::HashMap,
     fmt::{ self, Display, Formatter },
-    ops::{ Deref, DerefMut },
 };
 
 pub type TrackLists = HashMap<Playlist, Vec<String>>;
@@ -45,7 +44,7 @@ impl Display for Playlist {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
             Playlist::CurrentLoop => write!(f, "current-loop"),
-            Playlist::FreshVibrations => write!(f, "fresh-vibrations"),
+            Playlist::FreshVibrations => write!(f, ""),
             Playlist::IntoTheAbyss => write!(f, "into-the-abyss"),
             Playlist::FlowingAtmosphere => write!(f, "flowing-atmosphere"),
             Playlist::NerveRacking => write!(f, "nerve-racking"),
@@ -67,9 +66,10 @@ pub async fn get_track_lists(spotify: &mut Spotify, mode: FetchMode) -> Result<T
             fetch_all(spotify).await?
         },
         FetchMode::Limited => {
-            from_cache_or_fetch(spotify).await?
+            fetch_limited(spotify).await?
         },
         FetchMode::Cache => {
+            from_cache_or_fetch(spotify).await?
         },
     };
     Ok(track_lists)
@@ -91,7 +91,7 @@ async fn from_cache_or_fetch(spotify: &mut Spotify) -> Result<TrackLists> {
     Ok(track_lists)
 }
 
-pub async fn fetch_limited(spotify: &mut Spotify) -> Result<TrackLists> {
+async fn fetch_limited(spotify: &mut Spotify) -> Result<TrackLists> {
     let mut track_lists = TrackLists::new();
     fetch_track_list(spotify, &mut track_lists, Playlist::CurrentLoop).await?;
     fetch_track_list(spotify, &mut track_lists, Playlist::FreshVibrations).await?;
@@ -110,13 +110,12 @@ async fn fetch_track_list(
             .offset(offset)
             .get()
             .await?;
-        request.items
+        request
+            .items
             .iter()
-            .filter_map(|item| {
-                match &item.track {
-                    PlayableItem::Track(track) => Some(track.uri.clone()),
-                    _ => None,
-                }
+            .filter_map(|item| match &item.track {
+                PlayableItem::Track(track) => Some(track.uri.clone()),
+                _ => None,
             })
             .for_each(|track| track_list.push(track));
         if request.next.is_none() {

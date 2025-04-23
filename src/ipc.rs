@@ -25,7 +25,7 @@ impl Socket {
     }
 
     pub fn poll_signal(&self) -> bool {
-        if let Ok((mut stream, _)) = self.listener.accept() {
+        if let Ok((stream, _)) = self.listener.accept() {
             ron::de::from_reader::<_, RefreshSignal>(stream).is_ok()
         }
         else {

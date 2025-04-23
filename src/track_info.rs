@@ -1,15 +1,13 @@
 use crate::{
-    ipc::{ self, Socket },
-    playlist::{ Playlist, TrackLists },
+    ipc::Socket,
+    playlist::{ self, FetchMode, Playlist, TrackLists },
     spotify::Spotify,
     Error,
 };
 use anyhow::Result;
-use serde::{ Deserialize, Serialize };
 use spotify_rs::model::PlayableItem;
 use std::{
-    os::unix::net::UnixListener,
-    sync::mpsc::{ self, Sender },
+    sync::mpsc,
     time::Duration,
     thread,
 };
@@ -22,7 +20,7 @@ enum Event {
 }
 
 pub async fn run_daemon(
-    spotify: &mut Spotify, track_lists: TrackLists
+    spotify: &mut Spotify, mut track_lists: TrackLists
 ) -> Result<()> {
     let (tx, rx) = mpsc::channel();
     let socket = Socket::new()?;
@@ -38,10 +36,10 @@ pub async fn run_daemon(
     while let Ok(event) = rx.recv() {
         match event {
             Event::UpdateOutput => {
-                update_output(spotify, &track_lists).await?;
+                let _ = update_output(spotify, &track_lists).await;
             },
             Event::RefreshTrackLists => {
-                println!("event");
+                track_lists = playlist::get_track_lists(spotify, FetchMode::Limited).await?;
             },
         };
     }

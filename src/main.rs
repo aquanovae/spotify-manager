@@ -1,4 +1,5 @@
 mod cache;
+mod error;
 mod generate;
 mod ipc;
 mod playlist;
@@ -6,7 +7,11 @@ mod spotify;
 mod switch_track;
 mod track_info;
 
-use crate::playlist::{ FetchMode, Playlist, TrackLists };
+pub use crate::error::Error;
+
+use crate::{
+    playlist::{ FetchMode, Playlist }
+};
 use anyhow::Result;
 use clap::{ Parser, Subcommand };
 
@@ -16,7 +21,7 @@ struct Cli {
     command: Command,
 }
 
-#[derive(Debug, Subcommand)]
+#[derive(Debug, PartialEq, Subcommand)]
 enum Command {
     /// Authenticate user
     Auth {
@@ -29,55 +34,43 @@ enum Command {
     /// List playlists
     ListPlaylists,
     /// Switch current playing track to selected playlist
-    SwitchTrack {
+    SwitchTrack{
         /// Destination playlist
-        destination: Playlist,
+        #[arg(value_enum)]
+        destination: Option<Playlist>,
     },
     /// Get current playing track info
     TrackInfo,
 }
 
-#[derive(Debug, thiserror::Error)]
-enum Error {
-    #[error("No refresh token found")]
-    NoRefreshToken,
-    #[error("Error parsing spotify authentication response")]
-    ParseAuthResponse,
-    #[error("Playlist not fetched")]
-    PlaylistNotFetched,
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    match cli.command {
-        Command::Auth{ cli_login } => {
-            spotify::authenticate(cli_login).await?;
-            return Ok(());
-        },
-        Command::ListPlaylists => {
-            for playlist in enum_iterator::all::<Playlist>() {
-                println!("{}", playlist);
-            }
-            return Ok(());
-        },
-        _ => (),
-    };
+    if let Command::Auth{ cli_login } = cli.command {
+        spotify::authenticate(cli_login).await?;
+        return Ok(());
+    }
+    if cli.command == Command::ListPlaylists {
+        let list = enum_iterator::all::<Playlist>()
+            .map(|playlist| format!("{}", playlist))
+            .filter(|playlist| !playlist.is_empty())
+            .collect::<Vec<String>>()
+            .join("\n");
+        println!("{}", list);
+        return Ok(());
+    }
     let spotify = &mut spotify::get_api().await?;
-    let track_lists = match cli.command {
-        Command::Generate => {
-            playlist::get_track_lists(spotify, FetchMode::All).await?
-        },
-        _ => {
-            playlist::get_track_lists(spotify, FetchMode::Limited).await?
-        },
+    let track_lists = if cli.command == Command::Generate {
+        playlist::get_track_lists(spotify, FetchMode::All).await?
+    } else {
+        playlist::get_track_lists(spotify, FetchMode::Cache).await?
     };
     match cli.command {
         Command::Generate => {
             generate::daily_playlist(spotify, track_lists).await?;
         },
         Command::SwitchTrack{ destination } => {
-            switch_track::to_destination()?;
+            switch_track::to_playlist(spotify, destination).await?;
         },
         Command::TrackInfo => {
             track_info::run_daemon(spotify, track_lists).await?;
