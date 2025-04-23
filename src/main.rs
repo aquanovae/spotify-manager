@@ -9,9 +9,7 @@ mod track_info;
 
 pub use crate::error::Error;
 
-use crate::{
-    playlist::{ FetchMode, Playlist }
-};
+use crate::playlist::{ FetchMode, Playlist };
 use anyhow::Result;
 use clap::{ Parser, Subcommand };
 
