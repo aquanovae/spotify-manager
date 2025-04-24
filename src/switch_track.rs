@@ -22,6 +22,7 @@ pub async fn to_playlist(spotify: &mut Spotify, destination: Option<Playlist>, r
     let uri = &[currently_playling.uri];
     if remove {
         spotify.remove_playlist_items(Playlist::FreshVibrations.id(), uri).send().await?;
+        ipc::send_signal()?;
     }
     let playlist = match destination {
         Some(playlist) => playlist,
