@@ -36,6 +36,9 @@ enum Command {
         /// Destination playlist
         #[arg(value_enum)]
         destination: Option<Playlist>,
+        /// Remove track
+        #[arg(short, default_value_t = false)]
+        remove: bool,
     },
     /// Get current playing track info
     TrackInfo,
@@ -67,8 +70,8 @@ async fn main() -> Result<()> {
         Command::Generate => {
             generate::daily_playlist(spotify, track_lists).await?;
         },
-        Command::SwitchTrack{ destination } => {
-            switch_track::to_playlist(spotify, destination).await?;
+        Command::SwitchTrack{ destination, remove } => {
+            switch_track::to_playlist(spotify, destination, remove).await?;
         },
         Command::TrackInfo => {
             track_info::run_daemon(spotify, track_lists).await?;
