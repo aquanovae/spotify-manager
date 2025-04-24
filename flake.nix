@@ -22,7 +22,7 @@
       version = "1.0.2";
       src = ./.;
       useFetchCargoVendor = true;
-      cargoHash = "sha256-axy2UO3YmtuukMxjX8lEHFA0vYjO5JJJuJHQI81bG3g=";
+      cargoHash = "sha256-DpI8eOv6BiLn94FOE30CNSdNQrHeO9QnTlxbEQHanH8=";
     };
     devShells.${system}.default = pkgs.stdenv.mkDerivation {
       inherit buildInputs nativeBuildInputs;
