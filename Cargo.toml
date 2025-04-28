@@ -1,10 +1,10 @@
 [package]
 name = "spotify-manager"
-version = "1.0.2"
+version = "1.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = { version = "1.0.98", features = ["backtrace"] }
+anyhow = "1.0.98"
 clap = { version = "4.5.37", features = ["derive"] }
 enum-iterator = "2.1.0"
 rand = "0.9.1"

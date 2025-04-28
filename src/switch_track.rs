@@ -1,13 +1,16 @@
-use crate::{
-    ipc,
-    playlist::Playlist,
-    spotify::Spotify,
-    Error,
-};
+use crate::Error;
+use crate::playlist::Playlist;
+use crate::spotify::Spotify;
+use crate::track_info;
+
 use anyhow::Result;
 use spotify_rs::model::PlayableItem;
 
-pub async fn to_playlist(spotify: &mut Spotify, destination: Option<Playlist>, remove: bool) -> Result<()> {
+
+pub async fn to_playlist(
+    spotify: &mut Spotify, destination: Option<Playlist>, remove: bool
+) -> Result<()> {
+
     let currently_playling = spotify
         .get_currently_playing_track(None)
         .await?
@@ -18,22 +21,38 @@ pub async fn to_playlist(spotify: &mut Spotify, destination: Option<Playlist>, r
         })
         .flatten()
         .ok_or(Error::NoTrackPlaying)?;
+
     let id = &[currently_playling.id];
     let uri = &[currently_playling.uri];
+
     if remove {
-        spotify.remove_playlist_items(Playlist::FreshVibrations.id(), uri).send().await?;
-        ipc::send_signal()?;
+        spotify
+            .remove_playlist_items(Playlist::FreshVibrations.id(), uri)
+            .send()
+            .await?;
+
+        track_info::request_refresh()?;
+
+        return Ok(());
     }
+
     let playlist = match destination {
         Some(playlist) => playlist,
-        None => return Ok(()),
+        None => {
+            return Ok(());
+        },
     };
+
     spotify.save_tracks(id).await?;
     spotify.add_items_to_playlist(playlist.id(), uri).send().await?;
+
     if playlist != Playlist::CurrentLoop {
         spotify.remove_playlist_items(Playlist::CurrentLoop.id(), uri).send().await?;
     }
+
     spotify.remove_playlist_items(Playlist::FreshVibrations.id(), uri).send().await?;
-    ipc::send_signal()?;
+
+    track_info::request_refresh()?;
+
     Ok(())
 }
