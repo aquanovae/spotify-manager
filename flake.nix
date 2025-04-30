@@ -24,10 +24,10 @@
     packages.${system}.default = pkgs.rustPlatform.buildRustPackage {
       inherit buildInputs nativeBuildInputs;
       pname = "spotify-manager";
-      version = "1.1.0";
+      version = "1.1.1";
       src = ./.;
       useFetchCargoVendor = true;
-      cargoHash = "sha256-JgQcSJ28LiwPJUolwiyeSJEO4afaS0jm8XdDfO0iS+k=";
+      cargoHash = "sha256-SRnKp0YYeiK/WgN0XEc0pbLkQM1+gbsahprS5IKhc48=";
     };
 
     devShells.${system}.default = pkgs.stdenv.mkDerivation {

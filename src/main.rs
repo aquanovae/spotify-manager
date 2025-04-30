@@ -33,7 +33,11 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    let spotify = &mut spotify::get_api().await?;
+    let allow_retry = match cli.command {
+        Command::TrackInfo{ daemon: true } => true,
+        _ => false,
+    };
+    let spotify = &mut spotify::get_api(allow_retry).await?;
 
     match cli.command {
         Command::Generate => {

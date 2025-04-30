@@ -11,7 +11,7 @@ pub struct Cli {
 }
 
 
-#[derive(Debug, Subcommand)]
+#[derive(Debug, PartialEq, Subcommand)]
 pub enum Command {
 
     /// Authenticate user

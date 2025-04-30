@@ -5,10 +5,13 @@ use anyhow::Result;
 use spotify_rs::RedirectUrl;
 use spotify_rs::auth::{ AuthCodePkceFlow, NoVerifier, Token };
 use spotify_rs::client::{ AuthCodePkceClient, Client };
+use std::boxed::Box;
 use std::collections::HashMap;
 use std::io::{ self, BufRead, BufReader, Write };
 use std::net::TcpListener;
 use std::process::Command;
+use std::time::Duration;
+use std::thread;
 use url::Url;
 
 
@@ -20,17 +23,45 @@ pub const CHUNK_SIZE: usize = 100;
 const CLIENT_ID: &str = "b91f8140e4014e0eaf126d0bb043f59c";
 const LOOPBACK_ADDRESS: &str = "127.0.0.1:8080";
 const REDIRECT_URL: &str = "http://127.0.0.1:8080";
+const RETRIES: usize = 10;
 
 
-pub async fn get_api() -> Result<Spotify> {
+pub async fn get_api(allow_retry: bool) -> Result<Spotify> {
 
     let token = cache::read_token()?;
     let auth = AuthCodePkceFlow::new(CLIENT_ID, scopes());
-    let mut spotify = Client::from_refresh_token(auth, false, token).await?;
+
+    let mut spotify = if !allow_retry {
+        Client::from_refresh_token(auth, false, token).await?
+    } else {
+        Box::pin(get_api_retry()).await?
+    };
 
     save_token(&mut spotify).await?;
 
     Ok(spotify)
+}
+
+
+async fn get_api_retry() -> Result<Spotify> {
+
+    let mut try_count = 0;
+
+    loop {
+        if try_count > RETRIES {
+            return Err(Error::TooManyRetries.into());
+        }
+
+        match get_api(false).await {
+            Ok(spotify) => {
+                return Ok(spotify);
+            },
+            Err(_) => (),
+        }
+
+        try_count += 1;
+        thread::sleep(Duration::from_secs(2));
+    }
 }
 
 

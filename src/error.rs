@@ -12,5 +12,8 @@ pub enum Error {
 
     #[error("Playlist not fetched")]
     PlaylistNotFetched,
+
+    #[error("Could not connect to spotify API aftre too many attempts")]
+    TooManyRetries,
 }
 
